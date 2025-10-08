@@ -1,0 +1,21 @@
+
+[package]
+name = "ddd_dod_soa"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "DDD-friendly facade over a zero-copy SoA data-oriented kernel (Rust sketch)"
+repository = ""
+readme = "README.md"
+keywords = ["ddd", "data-oriented", "soa", "aos", "performance"]
+categories = ["data-structures"]
+
+[lib]
+name = "ddd_dod_soa"
+path = "src/lib.rs"
+
+[features]
+# no optional features yet
+
+[dependencies]
+# no external deps; add `rayon = "1"` if you parallelize later

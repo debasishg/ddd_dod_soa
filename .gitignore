@@ -1,0 +1,10 @@
+# Rust/Cargo
+/target
+**/*.rs.bk
+/.dSYM
+*.pdb
+
+# IDEs
+.vscode/
+.idea/
+
