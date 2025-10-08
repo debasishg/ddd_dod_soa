@@ -18,4 +18,5 @@ path = "src/lib.rs"
 # no optional features yet
 
 [dependencies]
+crossbeam-utils = "0.8"
 # no external deps; add `rayon = "1"` if you parallelize later

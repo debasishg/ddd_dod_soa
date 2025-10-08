@@ -7,6 +7,7 @@
 //! NOTE: This is a pedagogical sketch; harden with indices, generational arenas, error types,
 //! and proper concurrency primitives for production use.
 
+use crossbeam_utils::CachePadded;
 use std::fmt;
 use std::sync::Arc;
 
@@ -240,10 +241,6 @@ impl OrderStore {
 
 // ---------- Sharding to reduce false sharing & improve write scalability ----------
 
-// DIY cache padding (uses alignment to make each element start at a cache line)
-#[repr(align(64))]
-pub struct CachePadded<T>(pub T);
-
 pub struct ShardedOrderStore {
     shards: Vec<CachePadded<OrderSoA>>,
 }
@@ -252,7 +249,7 @@ impl ShardedOrderStore {
     pub fn with_shards(n: usize, cap_per: usize) -> Self {
         let mut shards = Vec::with_capacity(n);
         for _ in 0..n {
-            shards.push(CachePadded(OrderSoA::with_capacity(cap_per)));
+            shards.push(CachePadded::new(OrderSoA::with_capacity(cap_per)));
         }
         Self { shards }
     }
@@ -264,14 +261,14 @@ impl ShardedOrderStore {
 
     pub fn add(&mut self, id: OrderId, amount: Money, status: Status, ts: u64) -> (usize, usize) {
         let si = self.shard_idx(id);
-        let row = self.shards[si].0.push(id, amount, status, ts);
+        let row = self.shards[si].push(id, amount, status, ts);
         (si, row)
     }
 
     pub fn sum_by_status(&self, status: Status) -> Money {
         self.shards
             .iter()
-            .map(|s| s.0.sum_by_status(status))
+            .map(|s| s.sum_by_status(status))
             .fold(Money::zero(), |a, b| a.add(b))
     }
 }
@@ -305,5 +302,22 @@ mod tests {
             row.set_status(Status::Completed);
         }
         assert_eq!(k.sum_by_status(Status::Completed).0, 60.0);
+    }
+
+    #[test]
+    fn sharded_store_usage() {
+        let mut sharded = ShardedOrderStore::with_shards(4, 10);
+
+        // Add some orders to different shards
+        let _ = sharded.add(OrderId(1), Money(100.0), Status::Completed, 1000);
+        let _ = sharded.add(OrderId(5), Money(200.0), Status::Completed, 2000); // Different shard
+        let _ = sharded.add(OrderId(9), Money(50.0), Status::Pending, 3000); // Different shard
+
+        // Verify sum_by_status works across shards
+        let completed_total = sharded.sum_by_status(Status::Completed);
+        assert_eq!(completed_total.0, 300.0);
+
+        let pending_total = sharded.sum_by_status(Status::Pending);
+        assert_eq!(pending_total.0, 50.0);
     }
 }
