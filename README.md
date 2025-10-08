@@ -18,17 +18,27 @@ data-oriented design (DoD) using a **Struct-of-Arrays (SoA)** kernel and **zero-
 use ddd_dod_soa::*;
 
 let mut repo = OrderStore::new();
-repo.add(OrderId(1), Money(10.0), Status::Completed, 1000);
-repo.add(OrderId(2), Money(20.0), Status::Pending, 2000);
-repo.add(OrderId(3), Money(30.0), Status::Completed, 3000);
+let _ = repo.add(OrderId(1), Money(10.0), Status::Completed, 1000);
+let _ = repo.add(OrderId(2), Money(20.0), Status::Pending, 2000);
+let _ = repo.add(OrderId(3), Money(30.0), Status::Completed, 3000);
 
-let total_completed = repo.kernel().sum_by_status(Status::Completed);
-assert_eq!(total_completed.0, 40.0);
+// DDD-style querying via views (zero-copy):
+let total = repo
+    .find_by_status(Status::Completed)
+    .fold(Money::zero(), |acc, v| Money(acc.0 + v.amount().0));
+assert_eq!(total.0, 40.0);
 
-// Zero-copy row mutation:
+// Kernel access for batch ops:
+let kernel_total = repo.kernel().sum_by_status(Status::Completed);
+assert_eq!(kernel_total.0, 40.0);
+
+// Mutate a row via zero-copy mutable view:
 let k = repo.kernel_mut();
-let idx = 1usize;
-{ let mut row = k.view_mut(idx); row.set_status(Status::Completed); }
+let idx = 1usize; // suppose we tracked it externally
+{
+    let mut row = k.view_mut(idx);
+    row.set_status(Status::Completed);
+}
 assert_eq!(k.sum_by_status(Status::Completed).0, 60.0);
 ```
 
